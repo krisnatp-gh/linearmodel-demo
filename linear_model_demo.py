@@ -526,13 +526,12 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
     else:
         st.info("Add data points and calculate predictions to see metrics")
 
-# NEW SECTION: Inferential Analytics
-st.subheader("🔬 Inferential Analytics")
-
 # Show inferential analytics if we have data and predictions
 if (len(st.session_state.df) >= 3 and 
     st.session_state.df['y_model'].sum() != 0):
     
+    # NEW SECTION: Residual Analytics
+    st.subheader("Residual Analytics")
     # Residual Analysis Section (always available when we have predictions)
     with st.expander("📊 Residual Analysis", expanded=False):
         
@@ -581,6 +580,9 @@ if (len(st.session_state.df) >= 3 and
         st.plotly_chart(fig_scatter, use_container_width=True)
     
     # Statistical Tests Section (only for optimal fit)
+    # NEW SECTION: Inferential Analytics
+    st.subheader("Inferential Analytics")
+
     if st.session_state.is_optimal_fit:
         with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
             
