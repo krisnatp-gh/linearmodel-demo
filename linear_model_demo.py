@@ -5,6 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
+from scipy import stats
+from scipy.stats import shapiro, jarque_bera, normaltest
 import io
 
 # Page configuration
@@ -74,6 +76,7 @@ This application helps you understand how simple linear regression works by allo
 - Visualize how changes affect predictions and errors
 - Find the optimal model using least squares regression
 - Calculate and understand key performance metrics
+- Perform inferential analysis on the regression results
 """)
 
 
@@ -99,6 +102,9 @@ if 'slope' not in st.session_state:
     
 if 'intercept' not in st.session_state:
     st.session_state.intercept = 7.0
+
+if 'is_optimal_fit' not in st.session_state:
+    st.session_state.is_optimal_fit = False
 
 # Helper functions
 def calculate_predictions(df, slope, intercept):
@@ -135,6 +141,77 @@ def find_best_fit(df):
     
     return float(model.coef_[0]), float(model.intercept_)
 
+def calculate_regression_statistics(df):
+    """Calculate detailed regression statistics for inferential analysis"""
+    if len(df) < 3:
+        return None
+    
+    n = len(df)
+    x = df['x'].values
+    y = df['y_actual'].values
+    y_pred = df['y_model'].values
+    residuals = df['error'].values
+    
+    # Mean values
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    # Sum of squares
+    ss_xx = np.sum((x - x_mean) ** 2)
+    ss_yy = np.sum((y - y_mean) ** 2)
+    ss_xy = np.sum((x - x_mean) * (y - y_mean))
+    ss_res = np.sum(residuals ** 2)  # Residual sum of squares
+    
+    # Degrees of freedom
+    df_total = n - 1
+    df_regression = 1
+    df_residual = n - 2
+    
+    # Mean squares
+    ms_regression = np.sum((y_pred - y_mean) ** 2) / df_regression
+    ms_residual = ss_res / df_residual
+    
+    # Standard errors
+    se_residual = np.sqrt(ms_residual)
+    se_slope = se_residual / np.sqrt(ss_xx)
+    se_intercept = se_residual * np.sqrt(1/n + (x_mean**2)/ss_xx)
+    
+    # Current slope and intercept
+    slope = st.session_state.slope
+    intercept = st.session_state.intercept
+    
+    # t-statistics and p-values
+    t_slope = slope / se_slope if se_slope > 0 else np.inf
+    t_intercept = intercept / se_intercept if se_intercept > 0 else np.inf
+    
+    p_slope = 2 * (1 - stats.t.cdf(abs(t_slope), df_residual))
+    p_intercept = 2 * (1 - stats.t.cdf(abs(t_intercept), df_residual))
+    
+    # F-statistic for overall regression
+    f_statistic = ms_regression / ms_residual if ms_residual > 0 else np.inf
+    p_f = 1 - stats.f.cdf(f_statistic, df_regression, df_residual)
+    
+    # R-squared
+    r_squared = 1 - (ss_res / ss_yy)
+    
+    return {
+        'n': n,
+        'df_residual': df_residual,
+        'se_slope': se_slope,
+        'se_intercept': se_intercept,
+        'se_residual': se_residual,
+        't_slope': t_slope,
+        't_intercept': t_intercept,
+        'p_slope': p_slope,
+        'p_intercept': p_intercept,
+        'f_statistic': f_statistic,
+        'p_f': p_f,
+        'r_squared': r_squared,
+        'residuals': residuals,
+        'ms_residual': ms_residual,
+        'ss_res': ss_res
+    }
+
 def load_sample_data(dataset_name):
     """Load predefined sample datasets - removed but keeping function for compatibility"""
     return pd.DataFrame({
@@ -169,8 +246,10 @@ slope = st.sidebar.number_input("Slope", value=st.session_state.slope, step=0.1,
                                 help="How much Y increases for each unit increase in X")
 
 # Update session state
-st.session_state.slope = slope
-st.session_state.intercept = intercept
+if slope != st.session_state.slope or intercept != st.session_state.intercept:
+    st.session_state.slope = slope
+    st.session_state.intercept = intercept
+    st.session_state.is_optimal_fit = False  # Manual adjustment means not optimal
 
 # Display current equation with MathJax
 st.sidebar.markdown(f"**Current Model:**")
@@ -211,6 +290,7 @@ with col2:
         optimal_slope, optimal_intercept = find_best_fit(st.session_state.df)
         st.session_state.slope = optimal_slope
         st.session_state.intercept = optimal_intercept
+        st.session_state.is_optimal_fit = True  # Mark as optimal fit
         st.session_state.df = calculate_predictions(st.session_state.df, optimal_slope, optimal_intercept)
         st.rerun()
 
@@ -307,6 +387,7 @@ if edited_df is not None and len(edited_df) >= 0:
         new_df = new_df.dropna(subset=['x', 'y_actual'])
         
         st.session_state.df = new_df
+        st.session_state.is_optimal_fit = False  # Data changed, so not optimal anymore
 
 # Download section
 st.subheader("💾 Export Data")
@@ -338,6 +419,7 @@ with col2:
         'error': [pd.NA] * 5,
         'error_squared': [pd.NA] * 5
     })
+        st.session_state.is_optimal_fit = False
         st.rerun()
 
 # Main visualization section - NOW BELOW DATA INPUT
@@ -444,6 +526,229 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
     else:
         st.info("Add data points and calculate predictions to see metrics")
 
+# NEW SECTION: Inferential Analytics
+st.subheader("🔬 Inferential Analytics")
+
+# Only show inferential analytics if we have optimal fit
+if (len(st.session_state.df) >= 3 and 
+    st.session_state.df['y_model'].sum() != 0 and 
+    st.session_state.is_optimal_fit):
+    
+    with st.expander("🧪 Statistical Tests and Residual Analysis", expanded=False):
+        
+        # Calculate regression statistics
+        reg_stats = calculate_regression_statistics(st.session_state.df)
+        
+        if reg_stats is not None:
+            residuals = reg_stats['residuals']
+            n = reg_stats['n']
+            
+            # Create tabs for different analyses
+            tab1, tab2, tab3 = st.tabs(["Residual Analysis", "Normality Tests", "Parameter Tests"])
+            
+            with tab1:
+                st.markdown("### 📊 Residual Analysis")
+                
+                # Residual scatterplot
+                fig_scatter = go.Figure()
+                fig_scatter.add_trace(go.Scatter(
+                    x=st.session_state.df['y_model'],
+                    y=residuals,
+                    mode='markers',
+                    name='Residuals',
+                    marker=dict(color='blue', size=8)
+                ))
+                
+                # Add horizontal line at y=0
+                fig_scatter.add_hline(y=0, line_dash="dash", line_color="red")
+                
+                fig_scatter.update_layout(
+                    title="Residuals vs Fitted Values",
+                    xaxis_title="Fitted Values",
+                    yaxis_title="Residuals",
+                    height=400
+                )
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            with tab2:
+                st.markdown("### 🧪 Normality Tests")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Residual histogram
+                    fig_hist = go.Figure()
+                    fig_hist.add_trace(go.Histogram(
+                        x=residuals,
+                        nbinsx=max(5, min(10, n//2)),
+                        name="Residuals",
+                        marker_color="lightblue",
+                        opacity=0.7
+                    ))
+                    fig_hist.update_layout(
+                        title="Distribution of Residuals",
+                        xaxis_title="Residuals",
+                        yaxis_title="Frequency",
+                        showlegend=False,
+                        height=350,
+                        xaxis=dict(
+                                titlefont=dict(color='black', size=18),
+                                tickfont=dict(color='black', size=15)
+                                ),
+                        yaxis=dict(
+                                titlefont=dict(color='black', size=18),
+                                tickfont=dict(color='black', size=15)
+                                ),
+                        hoverlabel=dict(
+                                bgcolor="white",
+                                bordercolor="black",
+                                font_size=17,
+                                font_color="black",
+                                font_family="Arial"
+                                ),
+                        legend=dict(font_size=17,
+                                font_color="black",
+                                font_family="Arial")
+                    )
+                    st.plotly_chart(fig_hist, use_container_width=True)
+                
+                with col2:
+                    # Q-Q plot
+                    from scipy.stats import probplot
+                    qq_data = probplot(residuals, dist="norm")
+                    
+                    fig_qq = go.Figure()
+                    fig_qq.add_trace(go.Scatter(
+                        x=qq_data[0][0],
+                        y=qq_data[0][1],
+                        mode='markers',
+                        name='Sample Quantiles',
+                        marker=dict(color='blue', size=6)
+                    ))
+                    
+                    # Add theoretical line
+                    line_x = np.array([qq_data[0][0].min(), qq_data[0][0].max()])
+                    line_y = qq_data[1][1] + qq_data[1][0] * line_x
+                    fig_qq.add_trace(go.Scatter(
+                        x=line_x,
+                        y=line_y,
+                        mode='lines',
+                        name='Theoretical Normal',
+                        line=dict(color='red', dash='dash')
+                    ))
+                    
+                    fig_qq.update_layout(
+                        title="Q-Q Plot (Normal Distribution)",
+                        xaxis_title="Theoretical Quantiles",
+                        yaxis_title="Sample Quantiles",
+                        height=350,
+                        xaxis=dict(
+                            titlefont=dict(color='black', size=18),
+                            tickfont=dict(color='black', size=15)
+                            ),
+                        yaxis=dict(
+                            titlefont=dict(color='black', size=18),
+                            tickfont=dict(color='black', size=15)
+                            ),
+                        hoverlabel=dict(
+                            bgcolor="white",
+                            bordercolor="black",
+                            font_size=17,
+                            font_color="black",
+                            font_family="Arial"
+                            ),
+                        legend=dict(font_size=17,
+                                    font_color="black",
+                                    font_family="Arial")
+
+                            )
+                    st.plotly_chart(fig_qq, use_container_width=True)
+                
+                # Residual statistics
+                st.markdown("### 📈 Residual Statistics")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Mean", f"{np.mean(residuals):.6f}")
+                with col2:
+                    st.metric("Std Dev", f"{np.std(residuals, ddof=1):.4f}")
+                with col3:
+                    st.metric("Skewness", f"{stats.skew(residuals):.4f}")
+                with col4:
+                    st.metric("Kurtosis", f"{stats.kurtosis(residuals) + 3:.4f}")
+                
+                # Shapiro-Wilk interpretation
+                st.markdown("### 🧪 Shapiro-Wilk Test Result")
+                st.markdown("**H₀:** Residuals are normally distributed")
+                st.markdown("**H₁:** Residuals are not normally distributed")
+                # Shapiro-Wilk test
+                shapiro_stat, shapiro_p = shapiro(residuals)
+
+                
+                st.metric("Shapiro-Wilk p-value", f"{shapiro_p:.6f}")
+                if shapiro_p < 0.05:
+                    st.error("🔴 **Reject normality** (p < 0.05)")
+                else:
+                    st.success("🟢 **Cannot reject normality** (p ≥ 0.05)")
+            
+            with tab3:
+                st.markdown("### 🧮 Parameter Tests")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### 📈 Slope Test")
+                    st.markdown("**H₀:** β₁ = 0 (no linear relationship)")
+                    st.markdown("**H₁:** β₁ ≠ 0 (linear relationship exists)")
+                    st.markdown("---")
+                    st.metric("Parameter Value", f"{st.session_state.slope:.6f}")
+                    st.metric("Standard Error", f"{reg_stats['se_slope']:.6f}")
+                    st.metric("p-value", f"{reg_stats['p_slope']:.6f}")
+                    
+                    if reg_stats['p_slope'] < 0.05:
+                        st.success("🟢 **Significant** (p < 0.05)")
+                    else:
+                        st.error("🔴 **Not significant** (p ≥ 0.05)")
+                
+                with col2:
+                    st.markdown("#### 📊 Intercept Test")
+                    st.markdown("**H₀:** β₀ = 0 (line passes through origin)")
+                    st.markdown("**H₁:** β₀ ≠ 0 (line does not pass through origin)")
+                    st.markdown("---")
+                    st.metric("Parameter Value", f"{st.session_state.intercept:.6f}")
+                    st.metric("Standard Error", f"{reg_stats['se_intercept']:.6f}")
+                    st.metric("p-value", f"{reg_stats['p_intercept']:.6f}")
+                    
+                    if reg_stats['p_intercept'] < 0.05:
+                        st.success("🟢 **Significant** (p < 0.05)")
+                    else:
+                        st.info("ℹ️ **Not significant** (p ≥ 0.05)")
+                
+                # F-test for overall model
+                st.markdown("#### 🎯 Overall Model F-Test")
+                st.markdown("**H₀:** All slope equals zero (β1 = β2 = ... = βn= 0)")
+                st.markdown("**H₁:** At least one slope is nonzero")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("p-value", f"{reg_stats['p_f']:.6f}")
+                with col2:
+                    if reg_stats['p_f'] < 0.05:
+                        st.success("🟢 **Significant** (p < 0.05)")
+                    else:
+                        st.error("🔴 **Not significant** (p ≥ 0.05)")
+
+elif len(st.session_state.df) >= 3 and st.session_state.df['y_model'].sum() != 0:
+    with st.expander("🧪 Statistical Tests and Residual Analysis", expanded=False):
+        st.warning("⚠️ **Inferential analytics are only available when using optimal linear regression parameters.**")
+        st.info("Click '🎯 Find Parameters with Linear Regression' to enable statistical tests.")
+
+else:
+    with st.expander("🧪 Statistical Tests and Residual Analysis", expanded=False):
+        if len(st.session_state.df) < 3:
+            st.warning("⚠️ **Need at least 3 data points for statistical inference.**")
+        else:
+            st.info("Calculate predictions first, then use optimal linear regression to enable statistical tests.")
 # Mathematical concepts section
 st.subheader("📚 Mathematical Concepts")
 with st.expander("🧮 Understanding Linear Regression Mathematics", expanded=False):
@@ -463,6 +768,10 @@ with st.expander("🧮 Understanding Linear Regression Mathematics", expanded=Fa
     
     st.markdown("**Error Calculation:**")
     st.latex(r"\epsilon_i = y_{\text{actual},i} - y_{\text{model},i} = y_{\text{actual},i} - (\beta_0 + \beta_1 x_i)")
+    
+    st.markdown("**Statistical Inference (when assumptions are met):**")
+    st.latex(r"t_{\beta_1} = \frac{\hat{\beta_1} - 0}{SE(\hat{\beta_1})} \sim t_{n-2}")
+    st.latex(r"F = \frac{MS_{regression}}{MS_{residual}} \sim F_{1,n-2}")
 
 # Footer with educational content
 st.markdown("---")
@@ -472,10 +781,16 @@ st.markdown("""
 - Visualize how errors contribute to model performance metrics
 - Compare manual parameter tuning vs. optimal least squares solution
 - Interpret regression metrics (MSE, RMSE, R²) in context
+- **NEW:** Perform statistical inference on regression parameters
+- **NEW:** Assess residual normality and model validity
+- **NEW:** Understand when statistical tests are appropriate
 
 **💡 Try This:**
 1. Load sample data and find the best fit
 2. Manually adjust parameters and observe how metrics change  
 3. Add outliers and see their impact on the model
 4. Compare different datasets to understand when linear regression works well
+5. **NEW:** Use inferential analytics to test parameter significance
+6. **NEW:** Examine residual distributions and interpret normality tests
+7. **NEW:** Understand the relationship between sample size and test validity
 """)
