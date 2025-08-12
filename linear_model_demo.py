@@ -9,7 +9,7 @@ import io
 
 # Page configuration
 st.set_page_config(
-    page_title="Linear Regression Explorer",
+    page_title="Linear Model Explorer",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
