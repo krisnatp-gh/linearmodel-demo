@@ -529,48 +529,72 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
 # NEW SECTION: Inferential Analytics
 st.subheader("🔬 Inferential Analytics")
 
-# Only show inferential analytics if we have optimal fit
+# Show inferential analytics if we have data and predictions
 if (len(st.session_state.df) >= 3 and 
-    st.session_state.df['y_model'].sum() != 0 and 
-    st.session_state.is_optimal_fit):
+    st.session_state.df['y_model'].sum() != 0):
     
-    with st.expander("🧪 Statistical Tests and Residual Analysis", expanded=False):
+    # Residual Analysis Section (always available when we have predictions)
+    with st.expander("📊 Residual Analysis", expanded=False):
         
-        # Calculate regression statistics
-        reg_stats = calculate_regression_statistics(st.session_state.df)
+        # Calculate residuals for any type of fit
+        actual_y = st.session_state.df['y_actual'].values
+        predicted_y = st.session_state.df['y_model'].values
+        residuals = actual_y - predicted_y
         
-        if reg_stats is not None:
-            residuals = reg_stats['residuals']
-            n = reg_stats['n']
+        # Residual scatterplot
+        fig_scatter = go.Figure()
+        fig_scatter.add_trace(go.Scatter(
+            x=predicted_y,
+            y=residuals,
+            mode='markers',
+            name='Residuals',
+            marker=dict(color='blue', size=8)
+        ))
+        
+        # Add horizontal line at y=0
+        fig_scatter.add_hline(y=0, line_dash="dash", line_color="red")
+        
+        fig_scatter.update_layout(
+            title="Residuals vs Fitted Values",
+            xaxis_title="Fitted Values",
+            yaxis_title="Residuals",
+            height=400,
+            xaxis=dict(
+                    titlefont=dict(color='black', size=18),
+                    tickfont=dict(color='black', size=15)
+                    ),
+            yaxis=dict(
+                        titlefont=dict(color='black', size=18),
+                        tickfont=dict(color='black', size=15)
+                    ),
+            hoverlabel=dict(
+                bgcolor="white",
+                bordercolor="black",
+                font_size=17,
+                font_color="black",
+                font_family="Arial"
+                ),
+            legend=dict(font_size=17,
+                        font_color="black",
+                        font_family="Arial")
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+    
+    # Statistical Tests Section (only for optimal fit)
+    if st.session_state.is_optimal_fit:
+        with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
+            
+            # Calculate regression statistics
+            reg_stats = calculate_regression_statistics(st.session_state.df)
+            
+            if reg_stats is not None:
+                residuals = reg_stats['residuals']
+                n = reg_stats['n']
             
             # Create tabs for different analyses
-            tab1, tab2, tab3 = st.tabs(["Residual Analysis", "Normality Tests", "Parameter Tests"])
+            tab1, tab2 = st.tabs(["Normality Tests", "Parameter Tests"])
             
             with tab1:
-                st.markdown("### 📊 Residual Analysis")
-                
-                # Residual scatterplot
-                fig_scatter = go.Figure()
-                fig_scatter.add_trace(go.Scatter(
-                    x=st.session_state.df['y_model'],
-                    y=residuals,
-                    mode='markers',
-                    name='Residuals',
-                    marker=dict(color='blue', size=8)
-                ))
-                
-                # Add horizontal line at y=0
-                fig_scatter.add_hline(y=0, line_dash="dash", line_color="red")
-                
-                fig_scatter.update_layout(
-                    title="Residuals vs Fitted Values",
-                    xaxis_title="Fitted Values",
-                    yaxis_title="Residuals",
-                    height=400
-                )
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            
-            with tab2:
                 st.markdown("### 🧪 Normality Tests")
                 
                 col1, col2 = st.columns(2)
@@ -660,7 +684,6 @@ if (len(st.session_state.df) >= 3 and
                         legend=dict(font_size=17,
                                     font_color="black",
                                     font_family="Arial")
-
                             )
                     st.plotly_chart(fig_qq, use_container_width=True)
                 
@@ -683,7 +706,6 @@ if (len(st.session_state.df) >= 3 and
                 st.markdown("**H₁:** Residuals are not normally distributed")
                 # Shapiro-Wilk test
                 shapiro_stat, shapiro_p = shapiro(residuals)
-
                 
                 st.metric("Shapiro-Wilk p-value", f"{shapiro_p:.6f}")
                 if shapiro_p < 0.05:
@@ -691,7 +713,7 @@ if (len(st.session_state.df) >= 3 and
                 else:
                     st.success("🟢 **Cannot reject normality** (p ≥ 0.05)")
             
-            with tab3:
+            with tab2:
                 st.markdown("### 🧮 Parameter Tests")
                 
                 col1, col2 = st.columns(2)
@@ -738,18 +760,24 @@ if (len(st.session_state.df) >= 3 and
                     else:
                         st.error("🔴 **Not significant** (p ≥ 0.05)")
 
-elif len(st.session_state.df) >= 3 and st.session_state.df['y_model'].sum() != 0:
-    with st.expander("🧪 Statistical Tests and Residual Analysis", expanded=False):
-        st.warning("⚠️ **Inferential analytics are only available when using optimal linear regression parameters.**")
-        st.info("Click '🎯 Find Parameters with Linear Regression' to enable statistical tests.")
+    else:
+        with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
+            st.warning("⚠️ **Statistical tests are only available when using optimal linear regression parameters.**")
+            st.info("Click '🎯 Find Parameters with Linear Regression' to enable statistical tests.")
 
 else:
-    with st.expander("🧪 Statistical Tests and Residual Analysis", expanded=False):
+    # Show empty expanders with appropriate messages
+    with st.expander("📊 Residual Analysis", expanded=False):
+        if len(st.session_state.df) < 3:
+            st.warning("⚠️ **Need at least 3 data points for residual analysis.**")
+        else:
+            st.info("Calculate predictions first to enable residual analysis.")
+    
+    with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
         if len(st.session_state.df) < 3:
             st.warning("⚠️ **Need at least 3 data points for statistical inference.**")
         else:
-            st.info("Calculate predictions first, then use optimal linear regression to enable statistical tests.")
-# Mathematical concepts section
+            st.info("Calculate predictions first, then use optimal linear regression to enable statistical tests.")# Mathematical concepts section
 st.subheader("📚 Mathematical Concepts")
 with st.expander("🧮 Understanding Linear Regression Mathematics", expanded=False):
     st.markdown("**Linear Regression Model:**")
@@ -790,6 +818,7 @@ st.markdown("""
 2. Manually adjust parameters and observe how metrics change  
 3. Add outliers and see their impact on the model
 4. Compare different datasets to understand when linear regression works well
-5. Use inferential analytics to test parameter significance
-6. Examine residual distributions and interpret normality tests
+5. **NEW:** Use inferential analytics to test parameter significance
+6. **NEW:** Examine residual distributions and interpret normality tests
+7. **NEW:** Understand the relationship between sample size and test validity
 """)
