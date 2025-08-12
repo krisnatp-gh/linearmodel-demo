@@ -108,11 +108,48 @@ if 'is_optimal_fit' not in st.session_state:
 
 # Helper functions
 def calculate_predictions(df, slope, intercept):
-    """Calculate model predictions and errors"""
+    """Calculate model predictions and errors - improved version"""
+    if df is None or len(df) == 0:
+        return pd.DataFrame({
+            'x': [],
+            'y_actual': [],
+            'y_model': [],
+            'error': [],
+            'error_squared': []
+        })
+    
     df = df.copy()
-    df['y_model'] = slope * df['x'] + intercept
-    df['error'] = df['y_actual'] - df['y_model']
-    df['error_squared'] = df['error'] ** 2
+    
+    # Ensure we have the required columns
+    if 'x' not in df.columns:
+        df['x'] = np.nan
+    if 'y_actual' not in df.columns:
+        df['y_actual'] = np.nan
+    
+    # Calculate predictions only for rows with valid x values
+    valid_mask = df['x'].notna()
+    
+    # Initialize calculated columns
+    df['y_model'] = np.nan
+    df['error'] = np.nan
+    df['error_squared'] = np.nan
+    
+    # Calculate for valid rows only
+    if valid_mask.any():
+        df.loc[valid_mask, 'y_model'] = slope * df.loc[valid_mask, 'x'] + intercept
+        
+        # Only calculate errors where we have both actual and predicted values
+        error_mask = valid_mask & df['y_actual'].notna()
+        if error_mask.any():
+            df.loc[error_mask, 'error'] = df.loc[error_mask, 'y_actual'] - df.loc[error_mask, 'y_model']
+            df.loc[error_mask, 'error_squared'] = df.loc[error_mask, 'error'] ** 2
+    
+    # Fill NaN values with 0 for display purposes (but preserve NaN for actual missing data)
+    display_cols = ['y_model', 'error', 'error_squared']
+    for col in display_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(0.0)
+    
     return df
 
 def calculate_metrics(df):
@@ -130,16 +167,20 @@ def calculate_metrics(df):
 
 def find_best_fit(df):
     """Calculate optimal slope and intercept using OLS"""
-    if len(df) < 2:
+    # Clean the data first
+    clean_df = df.dropna(subset=['x', 'y_actual'])
+    
+    if len(clean_df) < 2:
         return 1.0, 0.0
     
-    X = df['x'].values.reshape(-1, 1)
-    y = df['y_actual'].values
+    X = clean_df['x'].values.reshape(-1, 1)
+    y = clean_df['y_actual'].values
     
     model = LinearRegression()
     model.fit(X, y)
     
     return float(model.coef_[0]), float(model.intercept_)
+    
 
 def calculate_regression_statistics(df):
     """Calculate detailed regression statistics for inferential analysis"""
@@ -282,17 +323,25 @@ st.sidebar.subheader("Actions")
 col1, col2 = st.sidebar.columns(2)
 with col1:
     if st.button("⚙️ Calculate Predictions", help="Update predictions based on current slope and intercept"):
-        st.session_state.df = calculate_predictions(st.session_state.df, slope, intercept)
+        # Don't reset the dataframe, just update predictions
+        current_df = st.session_state.df.copy()
+        st.session_state.df = calculate_predictions(current_df, st.session_state.slope, st.session_state.intercept)
         st.rerun()
 
 with col2:
     if st.button("🎯 Find Parameters with Linear Regression", help="Use least squares regression to find optimal parameters"):
-        optimal_slope, optimal_intercept = find_best_fit(st.session_state.df)
-        st.session_state.slope = optimal_slope
-        st.session_state.intercept = optimal_intercept
-        st.session_state.is_optimal_fit = True  # Mark as optimal fit
-        st.session_state.df = calculate_predictions(st.session_state.df, optimal_slope, optimal_intercept)
-        st.rerun()
+        # Calculate optimal parameters without resetting data
+        current_df = st.session_state.df.copy()
+        if len(current_df.dropna(subset=['x', 'y_actual'])) >= 2:
+            optimal_slope, optimal_intercept = find_best_fit(current_df)
+            st.session_state.slope = optimal_slope
+            st.session_state.intercept = optimal_intercept
+            st.session_state.is_optimal_fit = True
+            # Update predictions with new parameters
+            st.session_state.df = calculate_predictions(current_df, optimal_slope, optimal_intercept)
+            st.rerun()
+        else:
+            st.sidebar.error("Need at least 2 data points for regression")
 
 # Data input section - MOVED TO TOP OF MAIN CONTENT
 st.subheader("📝 Data Input")
@@ -324,9 +373,12 @@ display_columns = {
     'error_squared': 'Error²'
 }
 
+# Replace your existing data editor section with this fixed version:
+
+# Data editor with enhanced styling
 # Data editor with enhanced styling
 edited_df = st.data_editor(
-    st.session_state.df,
+    st.session_state.df.reset_index(drop=True),  # Reset index to avoid index column issues
     column_config={
         'x': st.column_config.NumberColumn(
             st.session_state.x_name,
@@ -359,36 +411,49 @@ edited_df = st.data_editor(
     },
     num_rows="dynamic",
     use_container_width=True,
-    key="data_editor"
+    key="data_editor",
+    hide_index=True  # Explicitly hide the index column
 )
 
 # Update session state with edited data - be more careful about data preservation
 if edited_df is not None and len(edited_df) >= 0:
-    # When new data is pasted, preserve only x and y_actual, reset calculated columns
+    # Check if the dataframe structure has changed (not just values)
     if not edited_df.equals(st.session_state.df):
         # Ensure we have the required columns
         new_df = edited_df.copy()
+        
+        # Remove any index columns that might have been added
+        if 'index' in new_df.columns:
+            new_df = new_df.drop('index', axis=1)
         
         # If user pasted data and we're missing calculated columns, add them
         required_cols = ['x', 'y_actual', 'y_model', 'error', 'error_squared']
         for col in required_cols:
             if col not in new_df.columns:
                 if col in ['y_model', 'error', 'error_squared']:
-                    new_df[col] = 0.0
+                    new_df[col] = pd.NA
                 else:
-                    new_df[col] = None
+                    new_df[col] = pd.NA
         
-        # Reset calculated columns when x or y_actual changes
-        new_df['y_model'] = 0.0
-        new_df['error'] = 0.0 
-        new_df['error_squared'] = 0.0
+        # Only reset calculated columns if x or y_actual actually changed
+        old_data = st.session_state.df[['x', 'y_actual']].dropna()
+        new_data = new_df[['x', 'y_actual']].dropna()
+        
+        if not old_data.equals(new_data):
+            # Data has changed, reset calculated columns
+            new_df['y_model'] = pd.NA
+            new_df['error'] = pd.NA
+            new_df['error_squared'] = pd.NA
+            st.session_state.is_optimal_fit = False
         
         # Remove any rows with NaN in x or y_actual
         new_df = new_df.dropna(subset=['x', 'y_actual'])
         
+        # Reset index to avoid issues
+        new_df = new_df.reset_index(drop=True)
+        
         st.session_state.df = new_df
-        st.session_state.is_optimal_fit = False  # Data changed, so not optimal anymore
-
+            
 # Download section
 st.subheader("💾 Export Data")
 col1, col2 = st.columns(2)
