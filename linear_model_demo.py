@@ -790,7 +790,6 @@ st.markdown("""
 2. Manually adjust parameters and observe how metrics change  
 3. Add outliers and see their impact on the model
 4. Compare different datasets to understand when linear regression works well
-5. **NEW:** Use inferential analytics to test parameter significance
-6. **NEW:** Examine residual distributions and interpret normality tests
-7. **NEW:** Understand the relationship between sample size and test validity
+5. Use inferential analytics to test parameter significance
+6. Examine residual distributions and interpret normality tests
 """)
