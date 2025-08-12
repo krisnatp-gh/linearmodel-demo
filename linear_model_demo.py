@@ -9,7 +9,7 @@ import io
 
 # Page configuration
 st.set_page_config(
-    page_title="Linear Model Explorer",
+    page_title="Simple Linear Model Explorer",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -423,7 +423,8 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
             with col1:
                 st.metric("Mean Squared Error (MSE)", f"{mse:.3f}", help="Average of squared errors - lower is better")
                 st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.3f}", help="Square root of MSE - in original units")
-                st.metric("R² (Coefficient of Determination)", f"{r2:.3f}", help="Proportion of variance explained (0-1, higher is better).\n Negative means the model is extremely poor fit.")
+                st.metric("R² (Coefficient of Determination)", f"{r2:.3f}", 
+                         help="Proportion of variance explained (0-1, higher is better).\nNegative means the model is extremely poor fit.⚠️NOTE: R² is ONLY MEANINGFUL for LINEAR MODELS.⚠️")
             
             with col2:
                 st.latex(r"\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_{\text{actual},i} - y_{\text{model},i})^2")
@@ -432,15 +433,12 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
 
                         
             # Interpretation help
-            st.markdown("**📖 Interpretation:**")
-            if r2 >= 0.8:
-                st.success("🎯 Excellent fit!")
-            elif r2 >= 0.6:
-                st.warning("👍 Good fit")
-            elif r2 >= 0.3:
-                st.warning("📊 Moderate fit")
+            st.markdown("**📖 R² Interpretation:**")
+            if r2 >= 0:
+                percentage = r2 * 100
+                st.info(f"R² = {r2:.3f} means that **{percentage:.1f}%** of the variance in **{st.session_state.y_name}** is explained by **{st.session_state.x_name}**.")
             else:
-                st.error("🔍 Poor fit - consider other models")
+                st.warning(f"R² = {r2:.3f} (negative) indicates that the model performs worse than a horizontal line at the mean of **{st.session_state.y_name}**.")
         else:
             st.info("Add data points and calculate predictions to see metrics")
     else:
