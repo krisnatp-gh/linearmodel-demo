@@ -17,53 +17,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for bigger and darker data editor
-st.markdown("""
-    <style>
-    /* Data editor cells */
-    .stDataFrame div[data-testid="stDataFrameResizable"] div[role="gridcell"] {
-        font-size: 16px !important;
-        color: #000000 !important;
-        font-weight: 500 !important;
-    }
-    
-    /* Data editor header cells */
-    .stDataFrame div[data-testid="stDataFrameResizable"] div[role="columnheader"] {
-        font-size: 17px !important;
-        color: #000000 !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Data editor input fields when editing */
-    .stDataFrame input {
-        font-size: 16px !important;
-        color: #000000 !important;
-        font-weight: 500 !important;
-    }
-    
-    /* Row index cells */
-    .stDataFrame div[data-testid="stDataFrameResizable"] div[data-testid="StyledDataFrameRowIndex"] {
-        font-size: 15px !important;
-        color: #000000 !important;
-        font-weight: 500 !important;
-    }
-    
-    /* Make the entire data editor container text darker */
-    div[data-testid="stDataFrame"] {
-        color: #000000 !important;
-    }
-    
-    /* Column resize handles */
-    .dvn-scroller {
-        color: #000000 !important;
-    }
-    
-    /* Selected cells */
-    .stDataFrame div[data-testid="stDataFrameResizable"] div[aria-selected="true"] {
-        font-weight: 600 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
 # Title and description
 st.title("📊 Simple Linear Model Explorer")
@@ -88,7 +41,9 @@ if 'df' not in st.session_state:
         'y_actual': [8, 13, 28, 32, 45],
         'y_model': [pd.NA] * 5,
         'error': [pd.NA] * 5,
-        'error_squared': [pd.NA] * 5
+        'error_squared': [pd.NA] * 5,
+        'abs_error': [pd.NA] * 5,
+        'pct_abs_error': [pd.NA] * 5
     })
 
 if 'x_name' not in st.session_state:
@@ -115,7 +70,10 @@ def calculate_predictions(df, slope, intercept):
             'y_actual': [],
             'y_model': [],
             'error': [],
-            'error_squared': []
+            'error_squared': [],
+            'abs_error': [],
+            'pct_abs_error': []
+
         })
     
     df = df.copy()
@@ -133,6 +91,9 @@ def calculate_predictions(df, slope, intercept):
     df['y_model'] = np.nan
     df['error'] = np.nan
     df['error_squared'] = np.nan
+    df['abs_error'] = np.nan
+    df['pct_abs_error'] = np.nan
+
     
     # Calculate for valid rows only
     if valid_mask.any():
@@ -143,9 +104,11 @@ def calculate_predictions(df, slope, intercept):
         if error_mask.any():
             df.loc[error_mask, 'error'] = df.loc[error_mask, 'y_actual'] - df.loc[error_mask, 'y_model']
             df.loc[error_mask, 'error_squared'] = df.loc[error_mask, 'error'] ** 2
+            df.loc[error_mask, 'abs_error'] = np.abs(df.loc[error_mask, 'error'])
+            df.loc[error_mask, 'pct_abs_error'] = df.loc[error_mask, 'abs_error'] / df.loc[error_mask, 'y_actual']
     
     # Fill NaN values with 0 for display purposes (but preserve NaN for actual missing data)
-    display_cols = ['y_model', 'error', 'error_squared']
+    display_cols = ['y_model', 'error', 'error_squared', 'abs_error', 'pct_abs_error']
     for col in display_cols:
         if col in df.columns:
             df[col] = df[col].fillna(0.0)
@@ -159,11 +122,13 @@ def calculate_metrics(df):
     
     mse = np.mean(df['error_squared'])
     rmse = np.sqrt(mse)
+    mae = np.mean(df['abs_error'])
+    mape = np.mean(df['pct_abs_error'])
     
     # Calculate R²
     r2 = r2_score(df['y_actual'], df['y_model'])
     
-    return mse, rmse, r2
+    return mse, rmse, r2, mae, mape
 
 def find_best_fit(df):
     """Calculate optimal slope and intercept using OLS"""
@@ -233,7 +198,7 @@ def calculate_regression_statistics(df):
     p_f = 1 - stats.f.cdf(f_statistic, df_regression, df_residual)
     
     # R-squared
-    r_squared = 1 - (ss_res / ss_yy)
+    r_squared = r2_score(y, y_pred)
     
     return {
         'n': n,
@@ -249,8 +214,6 @@ def calculate_regression_statistics(df):
         'p_f': p_f,
         'r_squared': r_squared,
         'residuals': residuals,
-        'ms_residual': ms_residual,
-        'ss_res': ss_res
     }
 
 def load_sample_data(dataset_name):
@@ -370,7 +333,9 @@ display_columns = {
     'y_actual': f'{st.session_state.y_name} (Actual)',
     'y_model': f'{st.session_state.y_name} (Model)',
     'error': 'Error',
-    'error_squared': 'Error²'
+    'error_squared': 'Error²',
+    'abs_error': '|Error|',
+    'pct_abs_error': '|% Error|'
 }
 
 # Replace your existing data editor section with this fixed version:
@@ -407,7 +372,19 @@ edited_df = st.data_editor(
             help="Squared errors used in MSE calculation",
             format="%.3f",
             disabled=True
-        )
+        ),
+        'abs_error': st.column_config.NumberColumn(
+            '|Error|',
+            help="Absolute of difference between actual and predicted values",
+            format="%.3f",
+            disabled=True
+        ),
+        'pct_abs_error': st.column_config.NumberColumn(
+            '|% Error|',
+            help="Absolute of difference between actual and predicted values divided by actual values",
+            format="percent",
+            disabled=True
+        ),
     },
     num_rows="dynamic",
     use_container_width=True,
@@ -562,7 +539,7 @@ st.subheader("📈 Performance Metrics")
 with st.expander("📊 View Model Performance Metrics", expanded=False):
     # Calculate and display metrics
     if len(st.session_state.df) > 0 and st.session_state.df['y_model'].sum() != 0:
-        mse, rmse, r2 = calculate_metrics(st.session_state.df)
+        mse, rmse, r2, mae, mape = calculate_metrics(st.session_state.df)
         
         if mse is not None:
             col1, col2 = st.columns(2)
@@ -570,12 +547,14 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
             with col1:
                 st.metric("Mean Squared Error (MSE)", f"{mse:.3f}", help="Average of squared errors - lower is better")
                 st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.3f}", help="Square root of MSE - in original units")
+                st.metric("Mean Absolute Error (MAE)", f"{mae:.3f}", help="Average of absolute errors - less influenced by outliers")
                 st.metric("R² (Coefficient of Determination)", f"{r2:.3f}", 
                          help="Proportion of variance explained (0-1, higher is better).\nNegative means the model is extremely poor fit.⚠️NOTE: R² is ONLY MEANINGFUL for LINEAR MODELS.⚠️")
             
             with col2:
                 st.latex(r"\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_{\text{actual},i} - y_{\text{model},i})^2")
                 st.latex(r"\text{RMSE} = \sqrt{\text{MSE}}")
+                st.latex(r"\text{MAE} = \frac{1}{n}\sum_{i=1}^{n}\left|y_{\text{actual},i} - y_{\text{model},i}\right|")
                 st.latex(r"R^2 = 1 - \frac{\text{SS}_{\text{res}}}{\text{SS}_{\text{tot}}} = 1 - \frac{\sum(y_{\text{actual},i} - y_{\text{model},i})^2}{\sum(y_{\text{actual},i} - \bar{y}_{\text{actual}})^2}")
 
                         
@@ -605,6 +584,7 @@ if (len(st.session_state.df) >= 3 and
         predicted_y = st.session_state.df['y_model'].values
         residuals = actual_y - predicted_y
         
+
         # Residual scatterplot
         fig_scatter = go.Figure()
         fig_scatter.add_trace(go.Scatter(
@@ -612,15 +592,16 @@ if (len(st.session_state.df) >= 3 and
             y=residuals,
             mode='markers',
             name='Residuals',
-            marker=dict(color='blue', size=8)
+            marker=dict(color='red', size=8)
         ))
         
         # Add horizontal line at y=0
-        fig_scatter.add_hline(y=0, line_dash="dash", line_color="red")
-        
+        fig_scatter.add_hline(y=0, line_dash="dash", line_color="black")
+        y_name = st.session_state.y_name
+
         fig_scatter.update_layout(
-            title="Residuals vs Fitted Values",
-            xaxis_title="Fitted Values",
+            title=f"Residuals vs Predicted {y_name}",
+            xaxis_title=f"Predicted {y_name}",
             yaxis_title="Residuals",
             height=400,
             xaxis=dict(
@@ -649,7 +630,7 @@ if (len(st.session_state.df) >= 3 and
     st.subheader("Inferential Analytics")
 
     if st.session_state.is_optimal_fit:
-        with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
+        with st.expander("🧪 Statistical Tests", expanded=False):
             
             # Calculate regression statistics
             reg_stats = calculate_regression_statistics(st.session_state.df)
