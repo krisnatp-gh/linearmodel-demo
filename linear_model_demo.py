@@ -810,7 +810,7 @@ if (len(st.session_state.df) >= 3 and
 
     else:
         with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
-            st.warning("⚠️ **Statistical tests are only available when using optimal linear regression parameters.**")
+            st.warning("⚠️ **Statistical tests are only available when using least square regression parameters.**")
             st.info("Click '🎯 Find Parameters with Linear Regression' to enable statistical tests.")
 
 else:
@@ -825,7 +825,7 @@ else:
         if len(st.session_state.df) < 3:
             st.warning("⚠️ **Need at least 3 data points for statistical inference.**")
         else:
-            st.info("Calculate predictions first, then use optimal linear regression to enable statistical tests.")# Mathematical concepts section
+            st.info("Calculate predictions first, then use least square regression to enable statistical tests.")# Mathematical concepts section
 st.subheader("📚 Mathematical Concepts")
 with st.expander("🧮 Understanding Linear Regression Mathematics", expanded=False):
     st.markdown("**Linear Regression Model:**")
