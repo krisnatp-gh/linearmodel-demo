@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from scipy import stats
-from scipy.stats import shapiro, jarque_bera, normaltest
+from scipy.stats import shapiro
 import io
 
 # Page configuration
@@ -876,16 +876,15 @@ st.markdown("""
 - Visualize how errors contribute to model performance metrics
 - Compare manual parameter tuning vs. optimal least squares solution
 - Interpret regression metrics (MSE, RMSE, R²) in context
-- **NEW:** Perform statistical inference on regression parameters
-- **NEW:** Assess residual normality and model validity
-- **NEW:** Understand when statistical tests are appropriate
+- Perform statistical inference on regression parameters
+- Assess residual distribution
 
 **💡 Try This:**
 1. Load sample data and find the best fit
 2. Manually adjust parameters and observe how metrics change  
 3. Add outliers and see their impact on the model
 4. Compare different datasets to understand when linear regression works well
-5. **NEW:** Use inferential analytics to test parameter significance
-6. **NEW:** Examine residual distributions and interpret normality tests
-7. **NEW:** Understand the relationship between sample size and test validity
+5. Use inferential analytics to test parameter significance
+6. Examine residual distributions and interpret normality tests
+7. Understand the relationship between sample size and test validity
 """)
