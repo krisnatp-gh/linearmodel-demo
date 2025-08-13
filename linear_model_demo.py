@@ -11,7 +11,7 @@ import io
 
 # Page configuration
 st.set_page_config(
-    page_title="Simple Linear Model Explorer",
+    page_title="Univariate Linear Model Explorer",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -19,7 +19,7 @@ st.set_page_config(
 
 
 # Title and description
-st.title("📊 Simple Linear Model Explorer")
+st.title("📊 Univariate Linear Model Explorer")
 st.markdown("""
 **Interactive Learning Tool for Linear Models**
 
@@ -27,9 +27,9 @@ This application helps you understand how simple linear regression works by allo
 - Input your own data or use sample datasets
 - Manually adjust model parameters (slope and intercept)
 - Visualize how changes affect predictions and errors
-- Find the optimal model using least squares regression
+- Find the optimal model using **least squares regression**
 - Calculate and understand key performance metrics
-- Perform inferential analysis on the regression results
+- Perform inferential analysis on the regression result
 """)
 
 
@@ -314,7 +314,7 @@ with st.expander("📋 How to use the data editor", expanded=False):
     st.markdown("""
     **Adding/Editing Data:**
     - Click on any cell to edit values directly
-    - Use the + button to add new rows
+    - Use the + button to add new rows (you may need to do it twice during the initialization of the app)
     - Delete rows by selecting them and using the delete key
     - **For copy/paste:** Paste your data into the x and y_actual columns, then click "Calculate Predictions"
     - The app will automatically reset predictions when you change the input data
@@ -545,9 +545,10 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.metric("Mean Squared Error (MSE)", f"{mse:.3f}", help="Average of squared errors - lower is better")
+                st.metric("Mean Squared Error (MSE)", f"{mse:.3f}", help="Average of squared errors - minimized by least square linear regression. Sensitive to outliers.")
                 st.metric("Root Mean Squared Error (RMSE)", f"{rmse:.3f}", help="Square root of MSE - in original units")
                 st.metric("Mean Absolute Error (MAE)", f"{mae:.3f}", help="Average of absolute errors - less influenced by outliers")
+                st.metric("Mean Absolute Percentage Error (MAPE)", f"{mape:.2%}", help="Average of absolute percentage errors - more interpretable to stakeholders. Sensitive to small actual values")
                 st.metric("R² (Coefficient of Determination)", f"{r2:.3f}", 
                          help="Proportion of variance explained (0-1, higher is better).\nNegative means the model is extremely poor fit.⚠️NOTE: R² is ONLY MEANINGFUL for LINEAR MODELS.⚠️")
             
@@ -555,6 +556,7 @@ with st.expander("📊 View Model Performance Metrics", expanded=False):
                 st.latex(r"\text{MSE} = \frac{1}{n}\sum_{i=1}^{n}(y_{\text{actual},i} - y_{\text{model},i})^2")
                 st.latex(r"\text{RMSE} = \sqrt{\text{MSE}}")
                 st.latex(r"\text{MAE} = \frac{1}{n}\sum_{i=1}^{n}\left|y_{\text{actual},i} - y_{\text{model},i}\right|")
+                st.latex(r"\text{MAPE} = \frac{1}{n}\sum_{i=1}^{n}\left|\frac{y_{\text{actual},i} - y_{\text{model},i}}{y_{\text{actual},i}}\right|")
                 st.latex(r"R^2 = 1 - \frac{\text{SS}_{\text{res}}}{\text{SS}_{\text{tot}}} = 1 - \frac{\sum(y_{\text{actual},i} - y_{\text{model},i})^2}{\sum(y_{\text{actual},i} - \bar{y}_{\text{actual}})^2}")
 
                         
@@ -592,11 +594,11 @@ if (len(st.session_state.df) >= 3 and
             y=residuals,
             mode='markers',
             name='Residuals',
-            marker=dict(color='red', size=8)
+            marker=dict(color='blue', size=8)
         ))
         
         # Add horizontal line at y=0
-        fig_scatter.add_hline(y=0, line_dash="dash", line_color="black")
+        fig_scatter.add_hline(y=0, line_dash="dash", line_color="red")
         y_name = st.session_state.y_name
 
         fig_scatter.update_layout(
@@ -658,7 +660,7 @@ if (len(st.session_state.df) >= 3 and
                         opacity=0.7
                     ))
                     fig_hist.update_layout(
-                        title="Distribution of Residuals",
+                        title="Histogram of Residuals",
                         xaxis_title="Residuals",
                         yaxis_title="Frequency",
                         showlegend=False,
@@ -750,8 +752,8 @@ if (len(st.session_state.df) >= 3 and
                 
                 # Shapiro-Wilk interpretation
                 st.markdown("### 🧪 Shapiro-Wilk Test Result")
-                st.markdown("**H₀:** Residuals are normally distributed")
-                st.markdown("**H₁:** Residuals are not normally distributed")
+                st.markdown("**H0:** Residuals are normally distributed")
+                st.markdown("**HA:** Residuals are not normally distributed")
                 # Shapiro-Wilk test
                 shapiro_stat, shapiro_p = shapiro(residuals)
                 
@@ -768,8 +770,8 @@ if (len(st.session_state.df) >= 3 and
                 
                 with col1:
                     st.markdown("#### 📈 Slope Test")
-                    st.markdown("**H₀:** β₁ = 0 (no linear relationship)")
-                    st.markdown("**H₁:** β₁ ≠ 0 (linear relationship exists)")
+                    st.markdown("**H0:** β1 = 0 (no linear relationship)")
+                    st.markdown("**HA:** β1 ≠ 0 (linear relationship exists)")
                     st.markdown("---")
                     st.metric("Parameter Value", f"{st.session_state.slope:.6f}")
                     st.metric("Standard Error", f"{reg_stats['se_slope']:.6f}")
@@ -782,8 +784,8 @@ if (len(st.session_state.df) >= 3 and
                 
                 with col2:
                     st.markdown("#### 📊 Intercept Test")
-                    st.markdown("**H₀:** β₀ = 0 (line passes through origin)")
-                    st.markdown("**H₁:** β₀ ≠ 0 (line does not pass through origin)")
+                    st.markdown("**H0:** β0 = 0 (line passes through origin)")
+                    st.markdown("**HA:** β0 ≠ 0 (line does not pass through origin)")
                     st.markdown("---")
                     st.metric("Parameter Value", f"{st.session_state.intercept:.6f}")
                     st.metric("Standard Error", f"{reg_stats['se_intercept']:.6f}")
@@ -796,8 +798,8 @@ if (len(st.session_state.df) >= 3 and
                 
                 # F-test for overall model
                 st.markdown("#### 🎯 Overall Model F-Test")
-                st.markdown("**H₀:** All slope equals zero (β1 = β2 = ... = βn= 0)")
-                st.markdown("**H₁:** At least one slope is nonzero")
+                st.markdown("**H0:** All slope equals zero (β1 = β2 = ... = βn= 0)")
+                st.markdown("**HA:** At least one slope is nonzero")
                 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -809,7 +811,7 @@ if (len(st.session_state.df) >= 3 and
                         st.error("🔴 **Not significant** (p ≥ 0.05)")
 
     else:
-        with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
+        with st.expander("🧪 Statistical Tests", expanded=False):
             st.warning("⚠️ **Statistical tests are only available when using least square regression parameters.**")
             st.info("Click '🎯 Find Parameters with Linear Regression' to enable statistical tests.")
 
@@ -821,33 +823,44 @@ else:
         else:
             st.info("Calculate predictions first to enable residual analysis.")
     
-    with st.expander("🧪 Statistical Tests and Advanced Analysis", expanded=False):
+    with st.expander("🧪 Statistical Tests", expanded=False):
         if len(st.session_state.df) < 3:
             st.warning("⚠️ **Need at least 3 data points for statistical inference.**")
         else:
             st.info("Calculate predictions first, then use least square regression to enable statistical tests.")# Mathematical concepts section
 st.subheader("📚 Mathematical Concepts")
 with st.expander("🧮 Understanding Linear Regression Mathematics", expanded=False):
-    st.markdown("**Linear Regression Model:**")
+    st.markdown("**Univariate (1-Variable) Linear Regression Model:**")
+    st.latex(r"y_{\text{model}} = \beta_0 + \beta_1 x")
     st.latex(r"y_{\text{actual}} = y_{\text{model}} + \epsilon = \beta_0 + \beta_1 x + \epsilon")
     
     st.markdown("Where:")
+    st.markdown("- $y_{\\text{actual}}$ = actual value (**dependent variable**, also often called as **response variable**)")
     st.markdown("- $y_{\\text{model}}$ = predicted value")
     st.markdown("- $\\beta_0$ = intercept (y-value when x=0)")
     st.markdown("- $\\beta_1$ = slope (change in y per unit change in x)")  
-    st.markdown("- $x$ = independent variable")
+    st.markdown("- $x$ = **independent variable**, also often called as **explanatory variable**)")
     st.markdown("- $\\epsilon$ = error term")
     
-    st.markdown("**Least Squares Solution:**")
-    st.latex(r"\beta_1 = \frac{\sum_{i=1}^{n}(x_i - \bar{x})(y_{\text{actual},i} - \bar{y}_{\text{actual}})}{\sum_{i=1}^{n}(x_i - \bar{x})^2}")
-    st.latex(r"\beta_0 = \bar{y}_{\text{actual}} - \beta_1\bar{x}")
     
-    st.markdown("**Error Calculation:**")
-    st.latex(r"\epsilon_i = y_{\text{actual},i} - y_{\text{model},i} = y_{\text{actual},i} - (\beta_0 + \beta_1 x_i)")
-    
-    st.markdown("**Statistical Inference (when assumptions are met):**")
-    st.latex(r"t_{\beta_1} = \frac{\hat{\beta_1} - 0}{SE(\hat{\beta_1})} \sim t_{n-2}")
-    st.latex(r"F = \frac{MS_{regression}}{MS_{residual}} \sim F_{1,n-2}")
+    st.markdown("**Statistical Inference for Linear Regression:**")
+    st.markdown("- Required Assumption: **Errors are normally distributed**")
+    st.markdown("- For **univariate linear regression**:")
+    st.latex(r"y_{\text{model}} = \beta_0 + \beta_1 x")
+
+
+    st.markdown("***t-test for Slope ($\\beta_1$):***")
+    st.markdown("- $H_0: \\beta_1 = 0 \\text{ (no linear relationship)}$")
+    st.markdown("- $H_A: \\beta_1 \\neq 0 \\text{ (linear relationship exists)}$")
+
+    st.markdown("***t-test for Intercept ($\\beta_0$):***")
+    st.markdown("- $H_0: \\beta_0 = 0 \\text{ (intercept equals zero)}$")
+    st.markdown("- $H_A: \\beta_0 \\neq 0 \\text{ (intercept does not equal zero)}$")
+
+    st.markdown("***F-test for Multivariate Linear Regression:***")
+    st.markdown("- $H_0: \\text{ All slope equals zero} \\left(\\beta_1 = \\beta_2 = ... = \\beta_n = 0\\right)$")
+    st.markdown("- $H_A: \\text{At least one slope is nonzero} $")
+    st.markdown("**Note: For univariate linear regression, F-test is just t-test with only one slope $\\beta_1$**")
 
 # Footer with educational content
 st.markdown("---")
