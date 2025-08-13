@@ -192,6 +192,10 @@ def calculate_regression_statistics(df):
     
     p_slope = 2 * (1 - stats.t.cdf(abs(t_slope), df_residual))
     p_intercept = 2 * (1 - stats.t.cdf(abs(t_intercept), df_residual))
+
+    # Critical t value for 95% confidence level (two-tailed)
+    alpha = 0.05
+    t_critical = stats.t.ppf(1 - alpha/2, df_residual)
     
     # F-statistic for overall regression
     f_statistic = ms_regression / ms_residual if ms_residual > 0 else np.inf
@@ -214,6 +218,7 @@ def calculate_regression_statistics(df):
         'p_f': p_f,
         'r_squared': r_squared,
         'residuals': residuals,
+        't_critical': t_critical
     }
 
 def load_sample_data(dataset_name):
@@ -773,8 +778,14 @@ if (len(st.session_state.df) >= 3 and
                     st.markdown("**H0:** β1 = 0 (no linear relationship)")
                     st.markdown("**HA:** β1 ≠ 0 (linear relationship exists)")
                     st.markdown("---")
-                    st.metric("Parameter Value", f"{st.session_state.slope:.6f}")
-                    st.metric("Standard Error", f"{reg_stats['se_slope']:.6f}")
+                    st.metric("β1 Value", f"{st.session_state.slope:.3f}")
+                    slope_upper_bound = max(st.session_state.slope + reg_stats['se_slope']*reg_stats['t_critical'],
+                                        st.session_state.slope - reg_stats['se_slope']*reg_stats['t_critical'])
+                    
+                    slope_lower_bound = min(st.session_state.slope + reg_stats['se_slope']*reg_stats['t_critical'],
+                                        st.session_state.slope - reg_stats['se_slope']*reg_stats['t_critical'])
+
+                    st.metric("Confidence Interval", f"[{slope_lower_bound:.2f}, {slope_upper_bound:.2f}]")
                     st.metric("p-value", f"{reg_stats['p_slope']:.6f}")
                     
                     if reg_stats['p_slope'] < 0.05:
@@ -787,8 +798,14 @@ if (len(st.session_state.df) >= 3 and
                     st.markdown("**H0:** β0 = 0 (line passes through origin)")
                     st.markdown("**HA:** β0 ≠ 0 (line does not pass through origin)")
                     st.markdown("---")
-                    st.metric("Parameter Value", f"{st.session_state.intercept:.6f}")
-                    st.metric("Standard Error", f"{reg_stats['se_intercept']:.6f}")
+                    st.metric("β0 Value", f"{st.session_state.intercept:.3f}")
+                    intercept_upper_bound = max(st.session_state.intercept + reg_stats['se_intercept']*reg_stats['t_critical'],
+                                        st.session_state.intercept - reg_stats['se_intercept']*reg_stats['t_critical'])
+                    
+                    intercept_lower_bound = min(st.session_state.intercept + reg_stats['se_intercept']*reg_stats['t_critical'],
+                                        st.session_state.intercept - reg_stats['se_intercept']*reg_stats['t_critical'])
+
+                    st.metric("Confidence Interval", f"[{intercept_lower_bound:.2f}, {intercept_upper_bound:.2f}]")
                     st.metric("p-value", f"{reg_stats['p_intercept']:.6f}")
                     
                     if reg_stats['p_intercept'] < 0.05:
