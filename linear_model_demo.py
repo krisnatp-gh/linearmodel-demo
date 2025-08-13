@@ -329,7 +329,7 @@ with col1:
         st.rerun()
 
 with col2:
-    if st.button("🎯 Find Parameters with Linear Regression", help="Use least squares regression to find optimal parameters"):
+    if st.button("🎯 Find Parameters with Linear Regression", help="Use linear regression to find least square parameters"):
         # Calculate optimal parameters without resetting data
         current_df = st.session_state.df.copy()
         if len(current_df.dropna(subset=['x', 'y_actual'])) >= 2:
